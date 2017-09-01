@@ -177,8 +177,10 @@ const drop = function() {
 };
 
 //// tree manipulation
-const fontSize = 14;
+const fontSize = 20;
 const lineHeight = fontSize * 1.5;
+
+const SELECTED = null;
 
 const recursiveCall =
 {name: '+',
@@ -239,9 +241,13 @@ const measureTree = function(ctx, tree) {
 };
 
 const drawTree = function(ctx, tree, x, y) {
+  if (tree == SELECTED) {
+    ctx.fillStyle = 'red';
+    ctx.fillRect(x, y, tree.width, lineHeight);
+  }
+
   ctx.strokeStyle = 'black';
   ctx.lineWidth = 1;
-
   ctx.strokeRect(x, y, tree.width, lineHeight);
 
   if (tree.children) {
@@ -250,6 +256,9 @@ const drawTree = function(ctx, tree, x, y) {
       drawTree(ctx, child, x + childXOffset, y - lineHeight);
       childXOffset += child.width;
     });
+  } else {
+    // end handle
+    ctx.strokeRect(x, y - lineHeight, tree.width, lineHeight);
   }
 
   ctx.fillStyle = 'black'
