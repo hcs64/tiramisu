@@ -183,7 +183,7 @@ const lineHeight = fontSize * 1.5;
 const recursiveCall =
 {name: '+',
  children: [
-   {name: 'fib',
+   {name: 'fib is the name of this thing',
     children: [
       {name: '-',
        children: [
@@ -234,48 +234,73 @@ const measureTree = function(ctx, tree) {
   if (typeof tree.slidOver == 'number') {
     nameWidth = Math.abs(tree.slidOver);
   }
-  let childrenWidth = 0;
-  if (tree.children && tree.children.length > 0) {
+  tree.childrenWidth = 0;
+  if (tree.children) {
     tree.children.forEach(function(child) {
       measureTree(ctx, child);
-      childrenWidth += child.width;
+      tree.childrenWidth += child.width;
     });
   }
 
-  tree.width = Math.max(nameWidth, childrenWidth);
+  if (nameWidth <= tree.childrenWidth) {
+    tree.width = tree.childrenWidth;
+  } else {
+    tree.width = nameWidth;
+
+    if (tree.children) {
+      widenTree(tree);
+    }
+  }
 };
 
-const drawTree = function(ctx, tree, x, y) {
+const widenTree = function(tree) {
+  if (tree.childrenWidth < tree.width && tree.children) {
+    const adjust = tree.width - tree.childrenWidth;
+    tree.childrenWidth = tree.width;
+
+    tree.children.forEach(function(child) {
+      child.width += adjust / tree.children.length;
+      widenTree(child);
+    });
+  }
+};
+
+const drawTree = function(ctx, tree, x, y, idx, depth) {
 
   if (tree.children) {
     let childXOffset = 0;
-    tree.children.forEach(function(child) {
+    tree.children.forEach(function(child, childIdx) {
       const height = typeof child.slidOut == 'number' ? child.slidOut : lineHeight;
-      drawTree(ctx, child, x + childXOffset, y - height);
+      drawTree(ctx, child, x + childXOffset, y - height, childIdx, depth + 1);
       childXOffset += child.width;
     });
-  } else {
-    // end handle
-    ctx.strokeRect(x, y - lineHeight, tree.width, lineHeight);
   }
 
-  ctx.fillStyle = 'white';
+  if (depth % 2 == 0) {
+    ctx.fillStyle = '#f0f0f0';
+  } else {
+    ctx.fillStyle = '#e0e0e0';
+  }
   ctx.fillRect(x, y, tree.width, lineHeight);
-
-  ctx.strokeStyle = 'black';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, tree.width, lineHeight);
 
   ctx.fillStyle = 'black'
   ctx.font = `${fontSize}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(tree.name, x + tree.width / 2, y + lineHeight / 2);
+
+  // dividing line
+  ctx.beginPath();
+  ctx.moveTo(x + tree.width, y);
+  ctx.lineTo(x + tree.width, y + lineHeight);
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 };
     
 const drawObjects = function(ctx) {
   measureTree(ctx, TREE);
-  drawTree(ctx, TREE, 200.5, 200.5);
+  drawTree(ctx, TREE, 200.5, 200.5, 0, 0);
 };
 
 //// kick off first draw
