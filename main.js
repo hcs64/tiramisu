@@ -180,8 +180,6 @@ const drop = function() {
 const fontSize = 20;
 const lineHeight = fontSize * 1.5;
 
-const SELECTED = null;
-
 const recursiveCall =
 {name: '+',
  children: [
@@ -192,11 +190,11 @@ const recursiveCall =
          {name: 'n'},
          {name: '1'},
        ]},
-       {name: '-',
-        children: [
-         {name: 'n'},
-         {name: '2'},
-       ]},
+      {name: '-',
+       children: [
+        {name: 'n'},
+        {name: '2'},
+      ]},
     ]},
  ]
 };
@@ -224,11 +222,18 @@ const TREE =
 
 const measureTree = function(ctx, tree) {
   const measureTextWidth = function(text) {
+    ctx.font = `${fontSize}px monospace`;
     return ctx.measureText(text).width;
   };
-  ctx.font = `${fontSize}px monospace`;
 
-  let nameWidth = measureTextWidth(tree.name) + fontSize;
+  if (typeof tree.textWidth != 'number') {
+    tree.textWidth = measureTextWidth(tree.name);
+  }
+
+  let nameWidth = tree.textWidth + fontSize;
+  if (typeof tree.slidOver == 'number') {
+    nameWidth = Math.abs(tree.slidOver);
+  }
   let childrenWidth = 0;
   if (tree.children && tree.children.length > 0) {
     tree.children.forEach(function(child) {
@@ -241,25 +246,25 @@ const measureTree = function(ctx, tree) {
 };
 
 const drawTree = function(ctx, tree, x, y) {
-  if (tree == SELECTED) {
-    ctx.fillStyle = 'red';
-    ctx.fillRect(x, y, tree.width, lineHeight);
-  }
-
-  ctx.strokeStyle = 'black';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, tree.width, lineHeight);
 
   if (tree.children) {
     let childXOffset = 0;
     tree.children.forEach(function(child) {
-      drawTree(ctx, child, x + childXOffset, y - lineHeight);
+      const height = typeof child.slidOut == 'number' ? child.slidOut : lineHeight;
+      drawTree(ctx, child, x + childXOffset, y - height);
       childXOffset += child.width;
     });
   } else {
     // end handle
     ctx.strokeRect(x, y - lineHeight, tree.width, lineHeight);
   }
+
+  ctx.fillStyle = 'white';
+  ctx.fillRect(x, y, tree.width, lineHeight);
+
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, tree.width, lineHeight);
 
   ctx.fillStyle = 'black'
   ctx.font = `${fontSize}px monospace`;
