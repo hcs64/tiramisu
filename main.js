@@ -249,6 +249,14 @@ const dragDrop = function() {
   } else if (DRAG_MODE == 'down') {
     if (TOUCH_NODE.slidOut == 0) {
       const p = findParent(TOUCH_NODE, TREE);
+      let lastChild = TOUCH_NODE;
+
+      for (let i = 0; i < TOUCH_NODE.children.length; ++i) {
+        addSiblingAfter(p, lastChild, TOUCH_NODE.children[i]);
+        lastChild = TOUCH_NODE.children[i];
+      }
+      TOUCH_NODE.children = [];
+
       removeChild(p, TOUCH_NODE);
     }
 
