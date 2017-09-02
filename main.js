@@ -361,8 +361,8 @@ const doClick = function({x, y}) {
 };
 
 //// tree manipulation
-const fontSize = 20;
-const lineHeight = fontSize * 1.5;
+const fontSize = 24;
+const lineHeight = fontSize * 2;
 
 /*
 const recursiveCall =
@@ -471,7 +471,6 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
     }
   }
 
-
   let height = lineHeight;
   if (typeof tree.slidOut == 'number') {
     height = tree.slidOut;
@@ -494,6 +493,12 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
     ctx.fillStyle = '#f0f0f0';
   } else {
     ctx.fillStyle = '#e0e0e0';
+  }
+  if (!tree.children || tree.children.length == 0) {
+    ctx.beginPath();
+    ctx.arc(x + tree.width / 2, y - height / 2, lineHeight / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
   }
   ctx.fillRect(x, y - height, tree.width, height);
 
