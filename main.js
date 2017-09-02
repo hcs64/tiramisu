@@ -58,7 +58,7 @@ let DRAG_FEEL_Y = 0;
 
 const touchStart = function({x, y}){
   TOUCH_BEGAN = {x, y};
-  TOUCH_NODE = nodeAt(100.5, 200.5, {x, y}, TREE);
+  TOUCH_NODE = nodeAt(TREE_POS.x, TREE_POS.y, {x, y}, TREE);
 
   initDrag();
 
@@ -202,6 +202,11 @@ const doDrag = function({x, y}) {
     const slidOver =
       Math.max(0, Math.min(lineHeight, DRAG_MODE == 'right' ? dx : -dx));
     NEW_NODE.slidOver = slidOver;
+
+    if (DRAG_MODE == 'left') {
+      TREE_POS.xOff = -slidOver;
+    }
+
     measureTree(ctx, TREE);
   }
 };
@@ -228,6 +233,9 @@ const dragDrop = function() {
       const p = findParent(NEW_NODE, TREE);
       removeChild(p, NEW_NODE);
     }
+
+    TREE_POS.x += TREE_POS.xOff;
+    TREE_POS.xOff = 0;
 
     NEW_NODE = null;
   }
@@ -282,6 +290,7 @@ const defunFib =
 };
 
 let TREE = defunFib;
+let TREE_POS = {x: 100.5, y: 200.5, xOff: 0};
 
 const measureTree = function(ctx, tree) {
   const measureTextWidth = function(text) {
@@ -378,7 +387,9 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  if (tree == TOUCH_NODE) {
+  if (tree == TOUCH_NODE ||
+      (tree == NEW_NODE &&
+       (tree.slidOver == lineHeight || tree.slidOut == lineHeight))) {
     ctx.strokeStyle = 'black';
     ctx.lineWidth = 3;
     ctx.strokeRect(x, y - height, tree.width, height);
@@ -387,9 +398,9 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
 
 const drawObjects = function(ctx) {
   measureTree(ctx, TREE);
-  drawTree(ctx, TREE, 100.5, 200.5, 0, 0, true, false);
-  drawTree(ctx, TREE, 100.5, 200.5, 0, 0, false, false);
-  drawTree(ctx, TREE, 100.5, 200.5, 0, 0, false, true);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y, 0, 0, true, false);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y, 0, 0, false, false);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y, 0, 0, false, true);
 };
 
 const nodeAt = function(treeX, treeY, {x, y}, tree) {
