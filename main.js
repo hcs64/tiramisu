@@ -161,7 +161,7 @@ const doDrag = function({x, y}) {
           // root can have no siblings
           DRAG_MODE = 'pan';
         } else {
-          NEW_NODE = {name: '', children: [], slidOver: 0};
+          NEW_NODE = {name: '', children: [{name: '', children: []}], slidOver: 0};
           if (dx > dragDist) {
             addSiblingBefore(p, TOUCH_NODE, NEW_NODE);
           } else {
@@ -172,7 +172,10 @@ const doDrag = function({x, y}) {
         console.log('drag down');
         DRAG_MODE = 'down';
 
-        if (!findParent(TOUCH_NODE, TREE)) {
+        if (!TOUCH_NODE.children || TOUCH_NODE.children.length == 0) {
+          // don't allow deleting handles
+          DRAG_MODE = 'pan';
+        } else if (!findParent(TOUCH_NODE, TREE)) {
           // don't want to make it easy to delete the whole tree
           DRAG_MODE = 'pan';
         } else {
@@ -329,6 +332,11 @@ const doClick = function({x, y}) {
   if (!node) {
     return;
   }
+
+  if (!node.children || node.children.length == 0) {
+    // don't put text into handles
+    return;
+  }
   
   promptText(node.name, 'Enter name', function(name) {
     node.name = name;
@@ -342,6 +350,7 @@ const doClick = function({x, y}) {
 const fontSize = 20;
 const lineHeight = fontSize * 1.5;
 
+/*
 const recursiveCall =
 {name: '+',
  children: [
@@ -381,8 +390,9 @@ const defunFib =
     ]},
  ]
 };
+*/
 
-let TREE = defunFib;
+let TREE = {name: '', children: [{name: '', children: []}]};
 let TREE_POS = {x: 100.5, y: 200.5, xOff: 0, yOff: 0};
 
 const measureTree = function(ctx, tree) {
@@ -413,7 +423,7 @@ const measureTree = function(ctx, tree) {
     tree.width = nameWidth;
 
     if (tree.children) {
-      //widenTree(tree);
+      widenTree(tree);
     }
   }
 };
