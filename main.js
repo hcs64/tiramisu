@@ -51,7 +51,9 @@ window.addEventListener('focus',  requestDraw);
 const dragDist = 20;
 let TOUCH_BEGAN = null;
 let TOUCH_NODE = null;
+let NEW_NODE = null;
 let DRAGGING = false;
+let DRAG_MODE = null;
 
 const touchStart = function({x, y}){
   TOUCH_BEGAN = {x, y};
@@ -69,23 +71,36 @@ const touchMove = function({x, y}){
   const dx = x - TOUCH_BEGAN.x;
   const dy = y - TOUCH_BEGAN.y;
   if (!DRAGGING) {
-    if (dx > dragDist) {
-      console.log('drag right');
-      DRAGGING = true;
-    } else if (dx < -dragDist) {
-      console.log('drag left');
-      DRAGGING = true;
-    } else if (dy > dragDist) {
-      console.log('drag down');
-      DRAGGING = true;
-    } else if (dy < -dragDist) {
-      console.log('drag up');
-      DRAGGING = true;
+    if (TOUCH_NODE) {
+      if (dx > dragDist) {
+        console.log('drag right');
+        DRAGGING = true;
+      } else if (dx < -dragDist) {
+        console.log('drag left');
+        DRAGGING = true;
+      } else if (dy > dragDist) {
+        console.log('drag down');
+        DRAGGING = true;
+      } else if (dy < -dragDist) {
+        console.log('drag up');
+        const p = findParent(TOUCH_NODE, TREE);
+        if (p == null) {
+        } else {
+          NEW_NODE = {name: '', children: [TOUCH_NODE], slidOut: 0};
+          replaceChild(p, TOUCH_NODE, NEW_NODE);
+        }
+        DRAG_MODE = 'up';
+        DRAGGING = true;
+      }
     }
   }
   
   if (DRAGGING) {
-    // TODO drag
+    if (DRAG_MODE == 'up') {
+      const slidOut = Math.max(0, Math.min(lineHeight, -dy));
+      NEW_NODE.slidOut = slidOut;
+      measureTree(ctx, TREE);
+    }
   }
 
   requestDraw();
@@ -313,6 +328,38 @@ const nodeAt = function(treeX, treeY, {x, y}, tree) {
   }
 
   return null;
+};
+
+const findParent = function(searchNode, tree) {
+  if (!tree.children) {
+    return null;
+  }
+  for (let i = 0; i < tree.children.length; ++i) {
+    const child = tree.children[i];
+    if (child == searchNode) {
+      return tree;
+    }
+    const result = findParent(searchNode, child);
+    if (result) {
+      return result;
+    }
+  }
+  return null;
+};
+
+const replaceChild = function(parentNode, oldNode, newNode) {
+  if (!parentNode.children) {
+    return;
+  }
+
+  for (let i = 0; i < parentNode.children.length; ++i) {
+    const child = parentNode.children[i];
+
+    if (child == oldNode) {
+      parentNode.children[i] = newNode;
+      return;
+    }
+  }
 };
 
 //// kick off first draw
