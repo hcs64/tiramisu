@@ -48,17 +48,19 @@ window.addEventListener('focus',  requestDraw);
 
 //// mid-level touch handlers
 
-const dragDist = 20;
+const dragDist = 10;
 let TOUCH_BEGAN = null;
 let TOUCH_NODE = null;
 let NEW_NODE = null;
-let DRAGGING = false;
 let DRAG_MODE = null;
+let DRAG_FEEL_X = 0;
+let DRAG_FEEL_Y = 0;
 
 const touchStart = function({x, y}){
   TOUCH_BEGAN = {x, y};
   TOUCH_NODE = nodeAt(100.5, 200.5, {x, y}, TREE);
-  DRAGGING = false;
+
+  initDrag();
 
   requestDraw();
 };
@@ -68,40 +70,7 @@ const touchMove = function({x, y}){
     return;
   }
 
-  const dx = x - TOUCH_BEGAN.x;
-  const dy = y - TOUCH_BEGAN.y;
-  if (!DRAGGING) {
-    if (TOUCH_NODE) {
-      if (dx > dragDist) {
-        console.log('drag right');
-        DRAGGING = true;
-      } else if (dx < -dragDist) {
-        console.log('drag left');
-        DRAGGING = true;
-      } else if (dy > dragDist) {
-        console.log('drag down');
-        DRAGGING = true;
-      } else if (dy < -dragDist) {
-        console.log('drag up');
-        const p = findParent(TOUCH_NODE, TREE);
-        if (p == null) {
-        } else {
-          NEW_NODE = {name: '', children: [TOUCH_NODE], slidOut: 0};
-          replaceChild(p, TOUCH_NODE, NEW_NODE);
-        }
-        DRAG_MODE = 'up';
-        DRAGGING = true;
-      }
-    }
-  }
-  
-  if (DRAGGING) {
-    if (DRAG_MODE == 'up') {
-      const slidOut = Math.max(0, Math.min(lineHeight, -dy));
-      NEW_NODE.slidOut = slidOut;
-      measureTree(ctx, TREE);
-    }
-  }
+  doDrag({x, y});
 
   requestDraw();
 };
@@ -111,9 +80,9 @@ const touchEnd = function({x, y}){
     return;
   }
 
-  if (DRAGGING) {
-    // TODO drop
-    DRAGGING = false;
+  if (DRAG_MODE) {
+    doDrag({x, y});
+    dragDrop();
   } else {
     // just a click
   }
@@ -129,9 +98,8 @@ const touchCancel = function() {
     return;
   }
 
-  if (DRAGGING) {
-    // TODO drop
-    DRAGGING = false;
+  if (DRAG_MODE) {
+    dragDrop()
   }
 
   TOUCH_BEGAN = null;
@@ -163,6 +131,83 @@ GET_TOUCHY(window, {
 window.addEventListener('wheel', function (e) {
 }, {passive: false});
 
+////
+
+const initDrag = function() {
+  DRAG_MODE = null;
+  DRAG_FEEL_X = 0;
+  DRAG_FEEL_Y = 0;
+};
+
+const doDrag = function({x, y}) {
+  const dx = x - TOUCH_BEGAN.x;
+  const dy = y - TOUCH_BEGAN.y;
+  DRAG_FEEL_X = dx;
+  DRAG_FEEL_Y = dy;
+  if (!DRAG_MODE) {
+    if (TOUCH_NODE) {
+      if (dx > dragDist) {
+        console.log('drag right');
+        DRAG_MODE = 'right';
+      } else if (dx < -dragDist) {
+        console.log('drag left');
+        DRAG_MODE = 'left';
+      } else if (dy > dragDist) {
+        console.log('drag down');
+        DRAG_MODE = 'down';
+      } else if (dy < -dragDist) {
+        console.log('drag up');
+        const p = findParent(TOUCH_NODE, TREE);
+        if (p == null) {
+          NEW_NODE = {name: '', children: [TREE], slidOut: 0};
+          TREE = NEW_NODE;
+        } else {
+          NEW_NODE = {name: '', children: [TOUCH_NODE], slidOut: 0};
+          replaceChild(p, TOUCH_NODE, NEW_NODE);
+        }
+        DRAG_MODE = 'up';
+      }
+    } else {
+      DRAG_MODE = 'pan';
+    }
+  }
+
+  if (DRAG_MODE) {
+    DRAG_FEEL_X = 0;
+    DRAG_FEEL_Y = 0;
+  }
+  
+  if (DRAG_MODE == 'up') {
+    const slidOut = Math.max(0, Math.min(lineHeight, -dy));
+    NEW_NODE.slidOut = slidOut;
+    measureTree(ctx, TREE);
+  }
+};
+
+const dragDrop = function() {
+  if (!DRAG_MODE) {
+    return;
+  }
+
+  if (DRAG_MODE == 'up') {
+    if (NEW_NODE.slidOut < lineHeight) {
+      // cancel new node
+      if (NEW_NODE == TREE) {
+        TREE = NEW_NODE.children[0];
+      } else {
+        const p = findParent(NEW_NODE, TREE);
+        replaceChild(p, NEW_NODE, TOUCH_NODE);
+      }
+    }
+    NEW_NODE.slidOut = null;
+    NEW_NODE = null;
+  }
+
+  DRAG_MODE = null;
+  DRAG_FEEL_X = 0;
+  DRAG_FEEL_Y = 0;
+};
+
 //// tree manipulation
 const fontSize = 20;
 const lineHeight = fontSize * 1.5;
@@ -186,7 +231,7 @@ const recursiveCall =
  ]
 };
 
-const TREE = 
+const defunFib = 
 {name: 'defun',
  children: [
    {name: 'fib'},
@@ -206,6 +251,8 @@ const TREE =
     ]},
  ]
 };
+
+let TREE = defunFib;
 
 const measureTree = function(ctx, tree) {
   const measureTextWidth = function(text) {
@@ -255,19 +302,22 @@ const widenTree = function(tree) {
 const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
   if (tree == TOUCH_NODE) {
     if (drawTop) {
-      x += 8;
-      y += 8;
+      x += DRAG_FEEL_X;
+      y += DRAG_FEEL_Y;
       drawTop = false;
     } else {
-      drawTop = true;
+      return;
     }
+  }
+
+  let height = lineHeight;
+  if (typeof tree.slidOut == 'number') {
+    height = tree.slidOut;
   }
 
   if (tree.children) {
     let childXOffset = 0;
     tree.children.forEach(function(child, childIdx) {
-      const height = typeof child.slidOut == 'number' ?
-                     child.slidOut : lineHeight;
       drawTree(ctx, child, x + childXOffset, y - height, childIdx, depth + 1,
                drawBot, drawTop);
       childXOffset += child.width;
@@ -283,21 +333,27 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
   } else {
     ctx.fillStyle = '#e0e0e0';
   }
-  ctx.fillRect(x, y, tree.width, lineHeight);
+  ctx.fillRect(x, y - height, tree.width, height);
 
   ctx.fillStyle = 'black'
   ctx.font = `${fontSize}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(tree.name, x + tree.width / 2, y + lineHeight / 2);
+  ctx.fillText(tree.name, x + tree.width / 2, y - height + lineHeight / 2);
 
   // dividing line
   ctx.beginPath();
-  ctx.moveTo(x + tree.width, y);
-  ctx.lineTo(x + tree.width, y + lineHeight);
+  ctx.moveTo(x + tree.width, y - height);
+  ctx.lineTo(x + tree.width, y - height + lineHeight);
   ctx.strokeStyle = 'black';
   ctx.lineWidth = 1;
   ctx.stroke();
+
+  if (tree == TOUCH_NODE) {
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y - height, tree.width, height);
+  }
 };
 
 const drawObjects = function(ctx) {
@@ -309,7 +365,7 @@ const drawObjects = function(ctx) {
 
 const nodeAt = function(treeX, treeY, {x, y}, tree) {
   if (x >= treeX && x < treeX + tree.width &&
-      y >= treeY && y < treeY + lineHeight) {
+      y >= treeY - lineHeight && y < treeY) {
     return tree;
   }
 
