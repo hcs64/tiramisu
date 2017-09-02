@@ -323,7 +323,7 @@ const measureTree = function(ctx, tree) {
     tree.textWidth = measureTextWidth(tree.name);
   }
 
-  let nameWidth = tree.textWidth + fontSize;
+  let nameWidth = Math.max(lineHeight, tree.textWidth + fontSize);
   if (typeof tree.slidOver == 'number') {
     nameWidth = Math.abs(tree.slidOver);
   }
