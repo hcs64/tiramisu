@@ -251,11 +251,17 @@ const dragDrop = function() {
       const p = findParent(TOUCH_NODE, TREE);
       let lastChild = TOUCH_NODE;
 
-      for (let i = 0; i < TOUCH_NODE.children.length; ++i) {
-        addSiblingAfter(p, lastChild, TOUCH_NODE.children[i]);
-        lastChild = TOUCH_NODE.children[i];
+      const childIsHandle = TOUCH_NODE.children.length == 1 &&
+                           TOUCH_NODE.children[0].children.length == 0;
+      const onlyChild = p.children.length == 1;
+      // If my child is a handle, only move it to my parent if I'm an only child
+      if (!childIsHandle || onlyChild) {
+        for (let i = 0; i < TOUCH_NODE.children.length; ++i) {
+          addSiblingAfter(p, lastChild, TOUCH_NODE.children[i]);
+          lastChild = TOUCH_NODE.children[i];
+        }
+        TOUCH_NODE.children = [];
       }
-      TOUCH_NODE.children = [];
 
       removeChild(p, TOUCH_NODE);
     }
