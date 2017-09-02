@@ -170,6 +170,14 @@ const doDrag = function({x, y}) {
       } else if (dy > dragDist) {
         console.log('drag down');
         DRAG_MODE = 'down';
+
+        if (!findParent(TOUCH_NODE, TREE)) {
+          // don't want to make it easy to delete the whole tree
+          DRAG_MODE = 'pan';
+        } else {
+          TOUCH_NODE.slidOut = 0;
+          TOUCH_NODE.slideUnder = true;
+        }
       } else if (dy < -dragDist) {
         console.log('drag up');
         DRAG_MODE = 'up';
@@ -194,11 +202,7 @@ const doDrag = function({x, y}) {
     DRAG_FEEL_Y = 0;
   }
   
-  if (DRAG_MODE == 'up') {
-    const slidOut = Math.max(0, Math.min(lineHeight, -dy));
-    NEW_NODE.slidOut = slidOut;
-    measureTree(ctx, TREE);
-  } else if (DRAG_MODE == 'left' || DRAG_MODE == 'right') {
+  if (DRAG_MODE == 'left' || DRAG_MODE == 'right') {
     const slidOver =
       Math.max(0, Math.min(lineHeight, DRAG_MODE == 'right' ? dx : -dx));
     NEW_NODE.slidOver = slidOver;
@@ -208,6 +212,14 @@ const doDrag = function({x, y}) {
     }
 
     measureTree(ctx, TREE);
+  } else if (DRAG_MODE == 'down') {
+    const slidOut = Math.max(0, Math.min(lineHeight, lineHeight - dy));
+    TOUCH_NODE.slidOut = slidOut;
+    measureTree(ctx, TREE);
+  } else if (DRAG_MODE == 'up') {
+    const slidOut = Math.max(0, Math.min(lineHeight, -dy));
+    NEW_NODE.slidOut = slidOut;
+    measureTree(ctx, TREE);
   }
 };
 
@@ -216,7 +228,26 @@ const dragDrop = function() {
     return;
   }
 
-  if (DRAG_MODE == 'up') {
+  if (DRAG_MODE == 'left' || DRAG_MODE == 'right') {
+    if (NEW_NODE.slidOver < lineHeight) {
+      const p = findParent(NEW_NODE, TREE);
+      removeChild(p, NEW_NODE);
+    }
+
+    TREE_POS.x += TREE_POS.xOff;
+    TREE_POS.xOff = 0;
+
+    NEW_NODE.slidOver = null;
+    NEW_NODE = null;
+  } else if (DRAG_MODE == 'down') {
+    if (TOUCH_NODE.slidOut == 0) {
+      const p = findParent(TOUCH_NODE, TREE);
+      removeChild(p, TOUCH_NODE);
+    }
+
+    TOUCH_NODE.slidOut = null;
+    TOUCH_NODE.slideUnder = false;
+  } else if (DRAG_MODE == 'up') {
     if (NEW_NODE.slidOut < lineHeight) {
       // cancel new node
       if (NEW_NODE == TREE) {
@@ -227,16 +258,6 @@ const dragDrop = function() {
       }
     }
     NEW_NODE.slidOut = null;
-    NEW_NODE = null;
-  } else if (DRAG_MODE == 'left' || DRAG_MODE == 'right') {
-    if (NEW_NODE.slidOver < lineHeight) {
-      const p = findParent(NEW_NODE, TREE);
-      removeChild(p, NEW_NODE);
-    }
-
-    TREE_POS.x += TREE_POS.xOff;
-    TREE_POS.xOff = 0;
-
     NEW_NODE = null;
   }
 
@@ -339,7 +360,13 @@ const widenTree = function(tree) {
 
 const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
   if (tree == TOUCH_NODE) {
-    if (drawTop) {
+    if (tree.slideUnder) {
+      if (drawBot) {
+        drawBot = false;
+      } else {
+        return;
+      }
+    } else if (drawTop) {
       x += DRAG_FEEL_X;
       y += DRAG_FEEL_Y;
       drawTop = false;
@@ -347,6 +374,7 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
       return;
     }
   }
+
 
   let height = lineHeight;
   if (typeof tree.slidOut == 'number') {
