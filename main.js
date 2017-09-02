@@ -119,7 +119,7 @@ const pinchEnd = function({x: x1, y: y1}, {x: x2, y: y2}) {
 };
 
 //// register touch handlers
-GET_TOUCHY(window, {
+GET_TOUCHY(cnv, {
   touchStart,
   touchMove,
   touchEnd,
