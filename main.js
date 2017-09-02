@@ -48,13 +48,17 @@ window.addEventListener('focus',  requestDraw);
 
 //// mid-level touch handlers
 
-const dragDist = 10;
+const dragDist = 20;
 let TOUCH_BEGAN = null;
+let TOUCH_NODE = null;
 let DRAGGING = false;
 
 const touchStart = function({x, y}){
   TOUCH_BEGAN = {x, y};
+  TOUCH_NODE = nodeAt(100.5, 200.5, {x, y}, TREE);
   DRAGGING = false;
+
+  requestDraw();
 };
 
 const touchMove = function({x, y}){
@@ -64,14 +68,27 @@ const touchMove = function({x, y}){
 
   const dx = x - TOUCH_BEGAN.x;
   const dy = y - TOUCH_BEGAN.y;
-  if (!DRAGGING && dx * dx + dy * dy > dragDist * dragDist) {
-    DRAGGING = true;
-    dragStart(x, y);
+  if (!DRAGGING) {
+    if (dx > dragDist) {
+      console.log('drag right');
+      DRAGGING = true;
+    } else if (dx < -dragDist) {
+      console.log('drag left');
+      DRAGGING = true;
+    } else if (dy > dragDist) {
+      console.log('drag down');
+      DRAGGING = true;
+    } else if (dy < -dragDist) {
+      console.log('drag up');
+      DRAGGING = true;
+    }
   }
   
   if (DRAGGING) {
-    drag(x, y);
+    // TODO drag
   }
+
+  requestDraw();
 };
 
 const touchEnd = function({x, y}){
@@ -79,16 +96,17 @@ const touchEnd = function({x, y}){
     return;
   }
 
-  touchMove({x, y});
-
   if (DRAGGING) {
-    drop();
+    // TODO drop
     DRAGGING = false;
   } else {
-    click();
+    // just a click
   }
 
   TOUCH_BEGAN = null;
+  TOUCH_NODE = null;
+
+  requestDraw();
 };
 
 const touchCancel = function() {
@@ -97,11 +115,14 @@ const touchCancel = function() {
   }
 
   if (DRAGGING) {
-    drop();
+    // TODO drop
     DRAGGING = false;
   }
 
   TOUCH_BEGAN = null;
+  TOUCH_NODE = null;
+
+  requestDraw();
 };
 
 const pinchStart = function({x: x1, y: y1}, {x: x2, y: y2}) {
@@ -126,55 +147,6 @@ GET_TOUCHY(window, {
 
 window.addEventListener('wheel', function (e) {
 }, {passive: false});
-
-//// high level touch handlers
-let DRAGGED = null
-const click = function() {
-  const o = objectAt(TOUCH_BEGAN);
-
-  if (o) {
-    removeObject(o);
-  } else {
-    createObjectAt(TOUCH_BEGAN);
-  }
-
-  requestDraw();
-};
-
-const dragStart = function(x, y) {
-  if (!DRAGGED) {
-    DRAGGED = objectAt(TOUCH_BEGAN);
-  }
-
-  requestDraw();
-};
-
-const drag = function(x, y) {
-  if (!DRAGGED) {
-    SCROLL.tx = x - TOUCH_BEGAN.x;
-    SCROLL.ty = y - TOUCH_BEGAN.y;
-    requestDraw();
-    return;
-  }
-
-  moveObjectTo(DRAGGED, x, y);
-
-  requestDraw();
-};
-
-const drop = function() {
-  if (!DRAGGED) {
-    SCROLL.x += SCROLL.tx;
-    SCROLL.y += SCROLL.ty;
-    SCROLL.tx = 0;
-    SCROLL.ty = 0;
-    return;
-  }
-
-  DRAGGED = null;
-
-  requestDraw();
-};
 
 //// tree manipulation
 const fontSize = 20;
@@ -265,15 +237,30 @@ const widenTree = function(tree) {
   }
 };
 
-const drawTree = function(ctx, tree, x, y, idx, depth) {
+const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
+  if (tree == TOUCH_NODE) {
+    if (drawTop) {
+      x += 8;
+      y += 8;
+      drawTop = false;
+    } else {
+      drawTop = true;
+    }
+  }
 
   if (tree.children) {
     let childXOffset = 0;
     tree.children.forEach(function(child, childIdx) {
-      const height = typeof child.slidOut == 'number' ? child.slidOut : lineHeight;
-      drawTree(ctx, child, x + childXOffset, y - height, childIdx, depth + 1);
+      const height = typeof child.slidOut == 'number' ?
+                     child.slidOut : lineHeight;
+      drawTree(ctx, child, x + childXOffset, y - height, childIdx, depth + 1,
+               drawBot, drawTop);
       childXOffset += child.width;
     });
+  }
+
+  if (drawBot || drawTop) {
+    return;
   }
 
   if (depth % 2 == 0) {
@@ -297,10 +284,35 @@ const drawTree = function(ctx, tree, x, y, idx, depth) {
   ctx.lineWidth = 1;
   ctx.stroke();
 };
-    
+
 const drawObjects = function(ctx) {
   measureTree(ctx, TREE);
-  drawTree(ctx, TREE, 200.5, 200.5, 0, 0);
+  drawTree(ctx, TREE, 100.5, 200.5, 0, 0, true, false);
+  drawTree(ctx, TREE, 100.5, 200.5, 0, 0, false, false);
+  drawTree(ctx, TREE, 100.5, 200.5, 0, 0, false, true);
+};
+
+const nodeAt = function(treeX, treeY, {x, y}, tree) {
+  if (x >= treeX && x < treeX + tree.width &&
+      y >= treeY && y < treeY + lineHeight) {
+    return tree;
+  }
+
+  if (!tree.children) {
+    return null;
+  }
+
+  let childXOffset = 0;
+  for (let i = 0; i < tree.children.length; ++i) {
+    const child = tree.children[i];
+    const result = nodeAt(treeX + childXOffset, treeY - lineHeight, {x, y}, child);
+    if (result) {
+      return result;
+    }
+    childXOffset += child.width;
+  }
+
+  return null;
 };
 
 //// kick off first draw
