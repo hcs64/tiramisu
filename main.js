@@ -220,6 +220,9 @@ const doDrag = function({x, y}) {
     const slidOut = Math.max(0, Math.min(lineHeight, -dy));
     NEW_NODE.slidOut = slidOut;
     measureTree(ctx, TREE);
+  } else if (DRAG_MODE == 'pan') {
+    TREE_POS.xOff = dx;
+    TREE_POS.yOff = dy;
   }
 };
 
@@ -259,6 +262,11 @@ const dragDrop = function() {
     }
     NEW_NODE.slidOut = null;
     NEW_NODE = null;
+  } else if (DRAG_MODE == 'pan') {
+    TREE_POS.x += TREE_POS.xOff;
+    TREE_POS.y += TREE_POS.yOff;
+    TREE_POS.xOff = 0;
+    TREE_POS.yOff = 0;
   }
 
   DRAG_MODE = null;
@@ -311,7 +319,7 @@ const defunFib =
 };
 
 let TREE = defunFib;
-let TREE_POS = {x: 100.5, y: 200.5, xOff: 0};
+let TREE_POS = {x: 100.5, y: 200.5, xOff: 0, yOff: 0};
 
 const measureTree = function(ctx, tree) {
   const measureTextWidth = function(text) {
@@ -426,9 +434,12 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
 
 const drawObjects = function(ctx) {
   measureTree(ctx, TREE);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y, 0, 0, true, false);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y, 0, 0, false, false);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y, 0, 0, false, true);
+  drawTree(ctx, TREE,
+      TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff, 0, 0, true, false);
+  drawTree(ctx, TREE,
+      TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff, 0, 0, false, false);
+  drawTree(ctx, TREE,
+      TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff, 0, 0, false, true);
 };
 
 const nodeAt = function(treeX, treeY, {x, y}, tree) {
