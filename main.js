@@ -489,18 +489,19 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
     return;
   }
 
-  if (depth % 2 == 0) {
-    ctx.fillStyle = '#f0f0f0';
+  const isHandle = !tree.children || tree.children.length == 0;
+  if (isHandle) {
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y - height, tree.width, height);
   } else {
-    ctx.fillStyle = '#e0e0e0';
+    if (depth % 2 == 0) {
+      ctx.fillStyle = '#f0f0f0';
+    } else {
+      ctx.fillStyle = '#e0e0e0';
+    }
+    ctx.fillRect(x, y - height, tree.width, height);
   }
-  if (!tree.children || tree.children.length == 0) {
-    ctx.beginPath();
-    ctx.arc(x + tree.width / 2, y - height / 2, lineHeight / 2, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  ctx.fillRect(x, y - height, tree.width, height);
 
   ctx.fillStyle = 'black'
   ctx.font = `${fontSize}px monospace`;
@@ -508,13 +509,15 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
   ctx.textBaseline = 'middle';
   ctx.fillText(tree.name, x + tree.width / 2, y - height + lineHeight / 2);
 
-  // dividing line
-  ctx.beginPath();
-  ctx.moveTo(x + tree.width, y - height);
-  ctx.lineTo(x + tree.width, y - height + lineHeight);
-  ctx.strokeStyle = 'black';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  if (!isHandle) {
+    // dividing line
+    ctx.beginPath();
+    ctx.moveTo(x + tree.width, y - height);
+    ctx.lineTo(x + tree.width, y - height + lineHeight);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
 
   if (tree == TOUCH_NODE ||
       (tree == NEW_NODE &&
