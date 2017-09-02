@@ -146,26 +146,43 @@ const doDrag = function({x, y}) {
   DRAG_FEEL_Y = dy;
   if (!DRAG_MODE) {
     if (TOUCH_NODE) {
-      if (dx > dragDist) {
-        console.log('drag right');
-        DRAG_MODE = 'right';
-      } else if (dx < -dragDist) {
-        console.log('drag left');
-        DRAG_MODE = 'left';
+      if (dx > dragDist || dx < -dragDist) {
+        if (dx > dragDist) {
+          console.log('drag right');
+          DRAG_MODE = 'right';
+        } else {
+          console.log('drag left');
+          DRAG_MODE = 'left';
+        }
+
+        const p = findParent(TOUCH_NODE, TREE);
+        if (p == null) {
+          // root can have no siblings
+          DRAG_MODE = 'pan';
+        } else {
+          NEW_NODE = {name: '', children: [], slidOver: 0};
+          if (dx > dragDist) {
+            addSiblingBefore(p, TOUCH_NODE, NEW_NODE);
+          } else {
+            addSiblingAfter(p, TOUCH_NODE, NEW_NODE);
+          }
+        }
       } else if (dy > dragDist) {
         console.log('drag down');
         DRAG_MODE = 'down';
       } else if (dy < -dragDist) {
         console.log('drag up');
+        DRAG_MODE = 'up';
+
         const p = findParent(TOUCH_NODE, TREE);
         if (p == null) {
+          // new root
           NEW_NODE = {name: '', children: [TREE], slidOut: 0};
           TREE = NEW_NODE;
         } else {
           NEW_NODE = {name: '', children: [TOUCH_NODE], slidOut: 0};
           replaceChild(p, TOUCH_NODE, NEW_NODE);
         }
-        DRAG_MODE = 'up';
       }
     } else {
       DRAG_MODE = 'pan';
@@ -180,6 +197,11 @@ const doDrag = function({x, y}) {
   if (DRAG_MODE == 'up') {
     const slidOut = Math.max(0, Math.min(lineHeight, -dy));
     NEW_NODE.slidOut = slidOut;
+    measureTree(ctx, TREE);
+  } else if (DRAG_MODE == 'left' || DRAG_MODE == 'right') {
+    const slidOver =
+      Math.max(0, Math.min(lineHeight, DRAG_MODE == 'right' ? dx : -dx));
+    NEW_NODE.slidOver = slidOver;
     measureTree(ctx, TREE);
   }
 };
@@ -200,6 +222,13 @@ const dragDrop = function() {
       }
     }
     NEW_NODE.slidOut = null;
+    NEW_NODE = null;
+  } else if (DRAG_MODE == 'left' || DRAG_MODE == 'right') {
+    if (NEW_NODE.slidOver < lineHeight) {
+      const p = findParent(NEW_NODE, TREE);
+      removeChild(p, NEW_NODE);
+    }
+
     NEW_NODE = null;
   }
 
@@ -282,7 +311,7 @@ const measureTree = function(ctx, tree) {
     tree.width = nameWidth;
 
     if (tree.children) {
-      widenTree(tree);
+      //widenTree(tree);
     }
   }
 };
@@ -413,6 +442,49 @@ const replaceChild = function(parentNode, oldNode, newNode) {
 
     if (child == oldNode) {
       parentNode.children[i] = newNode;
+      return;
+    }
+  }
+};
+
+const removeChild = function(parentNode, node) {
+  if (!parentNode.children) {
+    return;
+  }
+
+  for (let i = 0; i < parentNode.children.length; ++i) {
+    const child = parentNode.children[i];
+
+    if (child == node) {
+      parentNode.children.splice(i, 1);
+      return;
+    }
+  }
+};
+
+const addSiblingBefore = function(parentNode, node, newNode) {
+  if (!parentNode.children) {
+    return;
+  }
+
+  for (let i = 0; i < parentNode.children.length; ++i) {
+    const child = parentNode.children[i];
+    if (child == node) {
+      parentNode.children.splice(i, 0, newNode);
+      return;
+    }
+  }
+};
+
+const addSiblingAfter = function(parentNode, node, newNode) {
+  if (!parentNode.children) {
+    return;
+  }
+
+  for (let i = 0; i < parentNode.children.length; ++i) {
+    const child = parentNode.children[i];
+    if (child == node) {
+      parentNode.children.splice(i + 1, 0, newNode);
       return;
     }
   }
