@@ -11,11 +11,50 @@ html, body {
   margin: 0;
   touch-action: none;
 }
+
+div.fullscreen {
+  visibility: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+div.bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: white;
+  opacity: 0.6;
+}
+
+form#prompt-form {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: auto;
+  font-size: 20px;
+}
+
+form#prompt-form input[type=text] {
+  height: 20px;
+}
     </style>
     <title>tiramisu tree editor</title>
   </head>
   <body>
     <canvas id='cnv'></canvas>
+    <div id='prompt' class='fullscreen'>
+      <div class='bg'></div>
+      <form id='prompt-form'>
+        <div id='prompt-msg'></div>
+        <input id='prompt-input' type='text'>
+      </form>
+    </div>
     <script src='animPoly.js'></script>
     <script src='touchy.js'></script>
     <script src='main.js'></script>

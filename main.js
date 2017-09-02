@@ -85,6 +85,7 @@ const touchEnd = function({x, y}){
     dragDrop();
   } else {
     // just a click
+    doClick(TOUCH_BEGAN);
   }
 
   TOUCH_BEGAN = null;
@@ -272,6 +273,69 @@ const dragDrop = function() {
   DRAG_MODE = null;
   DRAG_FEEL_X = 0;
   DRAG_FEEL_Y = 0;
+};
+
+let CANCEL_PROMPT = null;
+const PROMPT = document.getElementById('prompt');
+const PROMPT_FORM = document.getElementById('prompt-form');
+const PROMPT_MSG = document.getElementById('prompt-msg');
+const PROMPT_INPUT = document.getElementById('prompt-input');
+
+const promptText = function (init, msg, cb, cbc) {
+  if (typeof init !== 'string') {
+    init = '';
+  }
+
+  if (CANCEL_PROMPT) {
+    CANCEL_PROMPT();
+  }
+
+  PROMPT_MSG.textContent = msg;
+  PROMPT.style.visibility = 'visible';
+
+  const submitHandler = function (e) {
+    const value = PROMPT_INPUT.value;
+    cancelPromptText(submitHandler);
+    PROMPT_INPUT.blur();
+    e.preventDefault();
+
+    cb(value);
+  };
+
+  PROMPT_FORM.addEventListener('submit', submitHandler);
+
+  PROMPT_INPUT.value = init;
+  PROMPT_INPUT.focus();
+
+  CANCEL_PROMPT = function () {
+    cancelPromptText(submitHandler);
+    if (!!cbc) {
+      cbc();
+    }
+  };
+};
+
+const cancelPromptText = function (submitHandler) {
+  PROMPT_INPUT.blur();
+  PROMPT_INPUT.value = '';
+  PROMPT.style.visibility = 'hidden'
+  PROMPT_FORM.removeEventListener('submit', submitHandler);
+  CANCEL_PROMPT = null;
+};
+
+const doClick = function({x, y}) {
+  const node = nodeAt(TREE_POS.x, TREE_POS.y, {x, y}, TREE);
+
+  if (!node) {
+    return;
+  }
+  
+  promptText(node.name, 'Enter name', function(name) {
+    node.name = name;
+    node.textWidth = null;
+    measureTree(ctx, TREE);
+    requestDraw();
+  }, null);
 };
 
 //// tree manipulation
