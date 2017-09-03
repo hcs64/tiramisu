@@ -462,20 +462,16 @@ const widenTree = function(tree) {
 };
 
 const drawTree = function(
-    ctx, tree, x, y, idx, depth, drawBot, drawTop, drawHandles) {
-  if (!drawHandles && tree == TOUCH_NODE) {
+    tree, x, y, idx, depth, layers, layerSolid, layerLines) {
+  if (tree == TOUCH_NODE) {
     if (tree.slideUnder) {
-      if (drawBot) {
-        drawBot = false;
-      } else {
-        return;
-      }
-    } else if (drawTop) {
+      layerSolid = layers.bgSolid;
+      layerLines = layers.bgLines;
+    } else {
       x += DRAG_FEEL_X;
       y += DRAG_FEEL_Y;
-      drawTop = false;
-    } else {
-      return;
+      layerSolid = layers.fgSolid;
+      layerLines = layers.fgLines;
     }
   }
 
@@ -487,64 +483,139 @@ const drawTree = function(
   if (tree.children) {
     let childXOffset = 0;
     tree.children.forEach(function(child, childIdx) {
-      drawTree(ctx, child, x + childXOffset, y - height, childIdx, depth + 1,
-               drawBot, drawTop, drawHandles);
+      drawTree(child, x + childXOffset, y - height, childIdx, depth + 1,
+               layers, layerSolid, layerLines);
       childXOffset += child.width;
     });
   }
 
-  if (drawBot || drawTop) {
-    return;
-  }
-
-  if (drawHandles && (!tree.children || tree.children.length == 0)) {
+  if (!tree.children || tree.children.length == 0) {
     // handle
-    ctx.strokeStyle = '#f0f0f0';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x + 1, y - height - lineHeight + 1, tree.width-2, lineHeight-2);
-    return;
+    layerSolid.push(
+        {op: 'strokeRect', strokeStyle: '#f0f0f0', lineWidth: 3,
+         x: x + 1,
+         y: y - height - lineHeight + 1,
+         w: tree.width-2,
+         h: lineHeight-2
+        });
+
+    // highlight handle if it is being dragged
+    if (TOUCH_NODE && TOUCH_NODE.handle &&
+        (TOUCH_NODE.p == tree ||
+         (TOUCH_NODE.p.children && TOUCH_NODE.p.children[0] == tree))) {
+      layers.fgLines.push(
+        {op: 'strokeRect', strokeStyle: 'black',
+         lineWidth: 3,
+         x: x,
+         y: y - height - lineHeight,
+         w: tree.width,
+         h: lineHeight
+        });
+    }
   }
 
-  if (depth % 2 == 0) {
-    ctx.fillStyle = '#f0f0f0';
-  } else {
-    ctx.fillStyle = '#e0e0e0';
-  }
-  ctx.fillRect(x, y - height, tree.width, height);
+  // main body of the node
+  const boxFillStyle = depth % 2 == 0 ? '#f0f0f0' : '#e0e0e0';
+  layerSolid.push(
+      {op: 'fillRect', fillStyle: boxFillStyle,
+       x: x,
+       y: y - height,
+       w: tree.width,
+       h: height
+      });
 
-  ctx.fillStyle = 'black'
-  ctx.font = `${fontSize}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(tree.name, x + tree.width / 2, y - height + lineHeight / 2);
+  // text label
+  layerLines.push(
+      {op: 'fillText', fillStyle: 'black',
+       font: `${fontSize}px monospace`,
+       textAlign: 'center',
+       textBaseline: 'middle',
+       msg: tree.name,
+       cx: x + tree.width / 2,
+       cy: y - height + lineHeight / 2
+      });
 
   // dividing line
-  ctx.beginPath();
-  ctx.moveTo(x + tree.width, y - height);
-  ctx.lineTo(x + tree.width, y);
-  ctx.strokeStyle = 'black';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  layerLines.push(
+      {op: 'stroke', strokeStyle: 'black',
+       lineWidth: 1,
+       path: [[{x: x + tree.width, y: y - height},
+               {x: x + tree.width, y: y}]]
+      });
 
+  // highlight node if it is being dragged
+  // or if this is a new node and it is locked in (slid completely)
   if (tree == TOUCH_NODE ||
       (tree == NEW_NODE &&
        (tree.slidOver == lineHeight || tree.slidOut == lineHeight))) {
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y - height, tree.width, height);
+    layers.fgLines.push(
+        {op: 'strokeRect', strokeStyle: 'black',
+         lineWidth: 3,
+         x: x,
+         y: y - height,
+         w: tree.width,
+         h: height
+        });
   }
+};
+
+const renderLayer = function(ctx, layer) {
+  layer.forEach(function(cmd) {
+    switch (cmd.op) {
+      case 'fillText':
+        ctx.fillStyle = cmd.fillStyle;
+        ctx.font = cmd.font;
+        ctx.textAlign = cmd.textAlign;
+        ctx.textBaseline = cmd.textBaseline;
+        ctx.fillText(cmd.msg, cmd.cx, cmd.cy);
+        break;
+      case 'fillRect':
+        ctx.fillStyle = cmd.fillStyle;
+        ctx.fillRect(cmd.x, cmd.y, cmd.w, cmd.h);
+        break;
+      case 'strokeRect':
+        ctx.strokeStyle = cmd.strokeStyle;
+        ctx.lineWidth = cmd.lineWidth;
+        ctx.strokeRect(cmd.x, cmd.y, cmd.w, cmd.h);
+        break;
+      case 'stroke':
+        ctx.beginPath();
+        cmd.path.forEach(function(segment) {
+          ctx.moveTo(segment[0].x, segment[0].y);
+          for (let i = 1; i < segment.length; ++i) {
+            ctx.lineTo(segment[i].x, segment[i].y);
+          }
+        });
+        ctx.strokeStyle = cmd.strokeStyle;
+        ctx.lineWidth = cmd.lineWidth;
+        ctx.stroke();
+        break;
+    }
+  });
 };
 
 const drawObjects = function(ctx) {
   measureTree(ctx, TREE);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
-      0, 0, false, false, true);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
-      0, 0, true, false, false);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
-      0, 0, false, false, false);
-  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
-      0, 0, false, true, false);
+
+  const layers =
+  {
+    bgSolid: [],
+    bgLines: [],
+    midSolid: [],
+    midLines: [],
+    fgSolid: [],
+    fgLines: [],
+  };
+
+  drawTree(TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
+      0, 0, layers, layers.midSolid, layers.midLines);
+
+  renderLayer(ctx, layers.bgSolid);
+  renderLayer(ctx, layers.bgLines);
+  renderLayer(ctx, layers.midSolid);
+  renderLayer(ctx, layers.midLines);
+  renderLayer(ctx, layers.fgSolid);
+  renderLayer(ctx, layers.fgLines);
 };
 
 const nodeAt = function(treeX, treeY, {x, y}, tree) {
