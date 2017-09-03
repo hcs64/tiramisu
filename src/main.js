@@ -257,6 +257,13 @@ const dragDrop = function() {
       const p = findParent(TOUCH_NODE, TREE);
       let lastChild = TOUCH_NODE;
 
+      // copy my children as siblings
+      for (let i = 0; i < TOUCH_NODE.children.length; ++i) {
+        addSiblingAfter(p, lastChild, TOUCH_NODE.children[i]);
+        lastChild = TOUCH_NODE.children[i];
+      }
+      TOUCH_NODE.children = [];
+
       removeChild(p, TOUCH_NODE);
     }
 
