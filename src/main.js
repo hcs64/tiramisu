@@ -442,13 +442,22 @@ const measureTree = function(ctx, tree) {
 
 const widenTree = function(tree) {
   if (tree.childrenWidth < tree.width && tree.children) {
-    const adjust = tree.width - tree.childrenWidth;
-    tree.childrenWidth = tree.width;
+    let nonSlidingChildren = 0;
 
     tree.children.forEach(function(child) {
-      child.width += adjust / tree.children.length;
-      widenTree(child);
+      if (typeof child.slidOver != 'number') {
+        ++ nonSlidingChildren;
+      }
     });
+    const adjust = (tree.width - tree.childrenWidth) / nonSlidingChildren;
+
+    tree.children.forEach(function(child) {
+      if (typeof child.slidOver != 'number') {
+        child.width += adjust;
+        widenTree(child);
+      }
+    });
+    tree.childrenWidth = adjust * nonSlidingChildren;
   }
 };
 
