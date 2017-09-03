@@ -55,6 +55,7 @@ let NEW_NODE = null;
 let DRAG_MODE = null;
 let DRAG_FEEL_X = 0;
 let DRAG_FEEL_Y = 0;
+let DRAG_LEFT_START_WIDTH = 0;
 
 const touchStart = function({x, y}){
   TOUCH_BEGAN = {x, y};
@@ -155,6 +156,7 @@ const doDrag = function({x, y}) {
           DRAG_MODE = 'right';
         } else {
           console.log('drag left');
+          DRAG_LEFT_START_WIDTH = TREE.width;
           DRAG_MODE = 'left';
         }
 
@@ -217,11 +219,11 @@ const doDrag = function({x, y}) {
       Math.max(0, Math.min(lineHeight, DRAG_MODE == 'right' ? dx : -dx));
     NEW_NODE.slidOver = slidOver;
 
-    if (DRAG_MODE == 'left') {
-      TREE_POS.xOff = -slidOver;
-    }
-
     measureTree(ctx, TREE);
+
+    if (DRAG_MODE == 'left') {
+      TREE_POS.xOff = DRAG_LEFT_START_WIDTH - TREE.width;
+    }
   } else if (DRAG_MODE == 'down') {
     const slidOut = Math.max(0, Math.min(lineHeight, lineHeight - dy));
     TOUCH_NODE.slidOut = slidOut;
