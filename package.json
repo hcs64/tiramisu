@@ -1,0 +1,16 @@
+{
+  "name": "tiramisu",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "mkdir -p release && cat src/animPoly.js src/touchy.js src/main.js | babel --out-file release/combined.js --presets=env && cp -v src/index_release.html release/index.html"
+  },
+  "files": [
+    "animPoly.js",
+    "touchy.js",
+    "main.js"
+  ],
+  "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-preset-env": "^1.5.2"
+  }
+}
