@@ -158,9 +158,9 @@ const doDrag = function({x, y}) {
           DRAG_MODE = 'left';
         }
 
-        const p = findParent(TOUCH_NODE, TREE);
+        const p = TOUCH_NODE.handle ? null : findParent(TOUCH_NODE, TREE);
         if (p == null) {
-          // root can have no siblings
+          // root or handle can have no siblings
           DRAG_MODE = 'pan';
         } else {
           NEW_NODE = {name: '', children: [], slidOver: 0};
@@ -174,7 +174,10 @@ const doDrag = function({x, y}) {
         console.log('drag down');
         DRAG_MODE = 'down';
 
-        if (!findParent(TOUCH_NODE, TREE)) {
+        if (TOUCH_NODE.handle) {
+          // can't delete handles
+          DRAG_MODE = 'pan';
+        } else if (!findParent(TOUCH_NODE, TREE)) {
           // don't want to make it easy to delete the whole tree
           DRAG_MODE = 'pan';
         } else {
@@ -185,11 +188,14 @@ const doDrag = function({x, y}) {
         console.log('drag up');
         DRAG_MODE = 'up';
 
-        const p = findParent(TOUCH_NODE, TREE);
+        const p = TOUCH_NODE.handle ? TOUCH_NODE.p : findParent(TOUCH_NODE, TREE);
         if (p == null) {
           // new root
           NEW_NODE = {name: '', children: [TREE], slidOut: 0};
           TREE = NEW_NODE;
+        } else if (TOUCH_NODE.handle) {
+          NEW_NODE = {name: '', children: [], slidOut: 0};
+          p.children = [NEW_NODE];
         } else {
           NEW_NODE = {name: '', children: [TOUCH_NODE], slidOut: 0};
           replaceChild(p, TOUCH_NODE, NEW_NODE);
@@ -261,6 +267,8 @@ const dragDrop = function() {
       // cancel new node
       if (NEW_NODE == TREE) {
         TREE = NEW_NODE.children[0];
+      } else if (TOUCH_NODE.handle) {
+        TOUCH_NODE.p.children = [];
       } else {
         const p = findParent(NEW_NODE, TREE);
         replaceChild(p, NEW_NODE, TOUCH_NODE);
@@ -331,7 +339,7 @@ const cancelPromptText = function (submitHandler) {
 const doClick = function({x, y}) {
   const node = nodeAt(TREE_POS.x, TREE_POS.y, {x, y}, TREE);
 
-  if (!node) {
+  if (!node || node.handle) {
     return;
   }
 
@@ -437,8 +445,9 @@ const widenTree = function(tree) {
   }
 };
 
-const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
-  if (tree == TOUCH_NODE) {
+const drawTree = function(
+    ctx, tree, x, y, idx, depth, drawBot, drawTop, drawHandles) {
+  if (!drawHandles && tree == TOUCH_NODE) {
     if (tree.slideUnder) {
       if (drawBot) {
         drawBot = false;
@@ -463,12 +472,20 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
     let childXOffset = 0;
     tree.children.forEach(function(child, childIdx) {
       drawTree(ctx, child, x + childXOffset, y - height, childIdx, depth + 1,
-               drawBot, drawTop);
+               drawBot, drawTop, drawHandles);
       childXOffset += child.width;
     });
   }
 
   if (drawBot || drawTop) {
+    return;
+  }
+
+  if (drawHandles && (!tree.children || tree.children.length == 0)) {
+    // handle
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x + 1, y - height - lineHeight + 1, tree.width-2, lineHeight-2);
     return;
   }
 
@@ -504,12 +521,14 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
 
 const drawObjects = function(ctx) {
   measureTree(ctx, TREE);
-  drawTree(ctx, TREE,
-      TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff, 0, 0, true, false);
-  drawTree(ctx, TREE,
-      TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff, 0, 0, false, false);
-  drawTree(ctx, TREE,
-      TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff, 0, 0, false, true);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
+      0, 0, false, false, true);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
+      0, 0, true, false, false);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
+      0, 0, false, false, false);
+  drawTree(ctx, TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
+      0, 0, false, true, false);
 };
 
 const nodeAt = function(treeX, treeY, {x, y}, tree) {
@@ -518,7 +537,12 @@ const nodeAt = function(treeX, treeY, {x, y}, tree) {
     return tree;
   }
 
-  if (!tree.children) {
+  if (!tree.children || tree.children.length == 0) {
+    // check for handle
+    if (x >= treeX && x < treeX + tree.width &&
+        y >= treeY - lineHeight * 2 && y < treeY - lineHeight) {
+      return {handle: true, p: tree};
+    }
     return null;
   }
 
