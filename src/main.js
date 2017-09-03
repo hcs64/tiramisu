@@ -146,7 +146,9 @@ const doDrag = function({x, y}) {
   DRAG_FEEL_X = dx;
   DRAG_FEEL_Y = dy;
   if (!DRAG_MODE) {
+    // starting drag
     if (TOUCH_NODE) {
+      // dragging a node
       if (dx > dragDist || dx < -dragDist) {
         if (dx > dragDist) {
           console.log('drag right');
@@ -159,6 +161,9 @@ const doDrag = function({x, y}) {
         const p = findParent(TOUCH_NODE, TREE);
         if (p == null) {
           // root can have no siblings
+          DRAG_MODE = 'pan';
+        } else if (!TOUCH_NODE.children || TOUCH_NODE.children.length == 0) {
+          // don't add a sibling for a handle, handles should be only children
           DRAG_MODE = 'pan';
         } else {
           NEW_NODE = {name: '', children: [{name: '', children: []}], slidOver: 0};
@@ -197,6 +202,7 @@ const doDrag = function({x, y}) {
         }
       }
     } else {
+      // dragging nothing, just pan
       DRAG_MODE = 'pan';
     }
   }
