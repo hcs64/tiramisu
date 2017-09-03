@@ -162,11 +162,8 @@ const doDrag = function({x, y}) {
         if (p == null) {
           // root can have no siblings
           DRAG_MODE = 'pan';
-        } else if (!TOUCH_NODE.children || TOUCH_NODE.children.length == 0) {
-          // don't add a sibling for a handle, handles should be only children
-          DRAG_MODE = 'pan';
         } else {
-          NEW_NODE = {name: '', children: [{name: '', children: []}], slidOver: 0};
+          NEW_NODE = {name: '', children: [], slidOver: 0};
           if (dx > dragDist) {
             addSiblingBefore(p, TOUCH_NODE, NEW_NODE);
           } else {
@@ -177,10 +174,7 @@ const doDrag = function({x, y}) {
         console.log('drag down');
         DRAG_MODE = 'down';
 
-        if (!TOUCH_NODE.children || TOUCH_NODE.children.length == 0) {
-          // don't allow deleting handles
-          DRAG_MODE = 'pan';
-        } else if (!findParent(TOUCH_NODE, TREE)) {
+        if (!findParent(TOUCH_NODE, TREE)) {
           // don't want to make it easy to delete the whole tree
           DRAG_MODE = 'pan';
         } else {
@@ -245,9 +239,9 @@ const dragDrop = function() {
     if (NEW_NODE.slidOver < lineHeight) {
       const p = findParent(NEW_NODE, TREE);
       removeChild(p, NEW_NODE);
+    } else {
+      TREE_POS.x += TREE_POS.xOff;
     }
-
-    TREE_POS.x += TREE_POS.xOff;
     TREE_POS.xOff = 0;
 
     NEW_NODE.slidOver = null;
@@ -256,18 +250,6 @@ const dragDrop = function() {
     if (TOUCH_NODE.slidOut == 0) {
       const p = findParent(TOUCH_NODE, TREE);
       let lastChild = TOUCH_NODE;
-
-      const childIsHandle = TOUCH_NODE.children.length == 1 &&
-                           TOUCH_NODE.children[0].children.length == 0;
-      const onlyChild = p.children.length == 1;
-      // If my child is a handle, only move it to my parent if I'm an only child
-      if (!childIsHandle || onlyChild) {
-        for (let i = 0; i < TOUCH_NODE.children.length; ++i) {
-          addSiblingAfter(p, lastChild, TOUCH_NODE.children[i]);
-          lastChild = TOUCH_NODE.children[i];
-        }
-        TOUCH_NODE.children = [];
-      }
 
       removeChild(p, TOUCH_NODE);
     }
@@ -353,11 +335,6 @@ const doClick = function({x, y}) {
     return;
   }
 
-  if (!node.children || node.children.length == 0) {
-    // don't put text into handles
-    return;
-  }
-  
   promptText(node.name, 'Enter name', function(name) {
     node.name = name;
     node.textWidth = null;
@@ -412,7 +389,7 @@ const defunFib =
 };
 */
 
-let TREE = {name: '', children: [{name: '', children: []}]};
+let TREE = {name: '', children: []};
 let TREE_POS = {x: 100.5, y: 200.5, xOff: 0, yOff: 0};
 
 const measureTree = function(ctx, tree) {
@@ -495,19 +472,12 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
     return;
   }
 
-  const isHandle = !tree.children || tree.children.length == 0;
-  if (isHandle) {
-    ctx.strokeStyle = '#e0e0e0';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y - height, tree.width, height);
+  if (depth % 2 == 0) {
+    ctx.fillStyle = '#f0f0f0';
   } else {
-    if (depth % 2 == 0) {
-      ctx.fillStyle = '#f0f0f0';
-    } else {
-      ctx.fillStyle = '#e0e0e0';
-    }
-    ctx.fillRect(x, y - height, tree.width, height);
+    ctx.fillStyle = '#e0e0e0';
   }
+  ctx.fillRect(x, y - height, tree.width, height);
 
   ctx.fillStyle = 'black'
   ctx.font = `${fontSize}px monospace`;
@@ -515,15 +485,13 @@ const drawTree = function(ctx, tree, x, y, idx, depth, drawBot, drawTop) {
   ctx.textBaseline = 'middle';
   ctx.fillText(tree.name, x + tree.width / 2, y - height + lineHeight / 2);
 
-  if (!isHandle) {
-    // dividing line
-    ctx.beginPath();
-    ctx.moveTo(x + tree.width, y - height);
-    ctx.lineTo(x + tree.width, y - height + lineHeight);
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
+  // dividing line
+  ctx.beginPath();
+  ctx.moveTo(x + tree.width, y - height);
+  ctx.lineTo(x + tree.width, y);
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   if (tree == TOUCH_NODE ||
       (tree == NEW_NODE &&
