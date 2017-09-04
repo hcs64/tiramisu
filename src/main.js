@@ -19,6 +19,7 @@ const draw = function(t) {
 
   drawObjects(ctx);
 };
+
 const requestDraw = function() {
   if (!drawRequested) {
     drawRequested = true;
@@ -46,6 +47,36 @@ const resize = function() {
 window.addEventListener('resize', resize);
 window.addEventListener('focus',  requestDraw);
 
+let CB_WIDE = 100;
+let CB_HIGH = 200;
+
+const cbCnv = document.getElementById('clipboard');
+const cbCtx = cbCnv.getContext('2d');
+
+const drawClipboard = function() {
+  cbCtx.fillStyle = 'white';
+  cbCtx.fillRect(0, 0, CB_WIDE, CB_HIGH);
+
+  drawClipboardObjects(cbCtx);
+
+  cbCtx.strokeStyle = 'black';
+  cbCtx.lineWidth = 3;
+  cbCtx.strokeRect(1, 1, CB_WIDE - 2, CB_HIGH - 2);
+};
+
+const resizeClipboard = function(wide, high) {
+  CB_WIDE = wide;
+  CB_HIGH = high;
+  cbCnv.width = CB_WIDE * dpr;
+  cbCnv.height = CB_HIGH * dpr;
+
+  cbCnv.style.width = `${CB_WIDE}px`;
+  cbCnv.style.height = `${CB_HIGH}px`;
+
+  cbCtx.setTransform(1, 0, 0, 1, 0, 0);
+  cbCtx.scale(dpr, dpr);
+};
+
 //// mid-level touch handlers
 
 const dragDist = 10;
@@ -57,6 +88,7 @@ let DRAG_FEEL_X = 0;
 let DRAG_FEEL_Y = 0;
 let DRAG_LEFT_START_WIDTH = 0;
 let PINCH_BEGAN = null;
+let LONG_PRESS_TIMEOUT = null;
 
 const touchStart = function({x, y}){
   x = (x - SCROLL.x) / ZOOM.z;
@@ -66,6 +98,8 @@ const touchStart = function({x, y}){
   TOUCH_NODE = nodeAt(0, 0, {x, y}, TREE);
 
   initDrag();
+
+  LONG_PRESS_TIMEOUT = window.setTimeout(longPress, 750);
 
   requestDraw();
 };
@@ -97,6 +131,11 @@ const touchEnd = function({x, y}){
     doClick(TOUCH_BEGAN);
   }
 
+  if (LONG_PRESS_TIMEOUT) {
+    clearTimeout(LONG_PRESS_TIMEOUT);
+    LONG_PRESS_TIMEOUT = null;
+  }
+
   TOUCH_BEGAN = null;
   TOUCH_NODE = null;
 
@@ -114,6 +153,11 @@ const touchCancel = function() {
 
   TOUCH_BEGAN = null;
   TOUCH_NODE = null;
+
+  if (LONG_PRESS_TIMEOUT) {
+    clearTimeout(LONG_PRESS_TIMEOUT);
+    LONG_PRESS_TIMEOUT = null;
+  }
 
   requestDraw();
 };
@@ -195,6 +239,11 @@ const doDrag = function({x, y}) {
   DRAG_FEEL_X = dx;
   DRAG_FEEL_Y = dy;
   if (!DRAG_MODE) {
+
+    if (LONG_PRESS_TIMEOUT) {
+      clearTimeout(LONG_PRESS_TIMEOUT);
+      LONG_PRESS_TIMEOUT = null;
+    }
     // starting drag
     if (TOUCH_NODE) {
       // dragging a node
@@ -351,7 +400,7 @@ const PROMPT_FORM = document.getElementById('prompt-form');
 const PROMPT_MSG = document.getElementById('prompt-msg');
 const PROMPT_INPUT = document.getElementById('prompt-input');
 
-const promptText = function (init, msg, cb, cbc) {
+const promptText = function(init, msg, cb, cbc) {
   if (typeof init !== 'string') {
     init = '';
   }
@@ -363,7 +412,7 @@ const promptText = function (init, msg, cb, cbc) {
   PROMPT_MSG.textContent = msg;
   PROMPT.style.visibility = 'visible';
 
-  const submitHandler = function (e) {
+  const submitHandler = function(e) {
     const value = PROMPT_INPUT.value;
     cancelPromptText(submitHandler);
     PROMPT_INPUT.blur();
@@ -385,7 +434,7 @@ const promptText = function (init, msg, cb, cbc) {
   };
 };
 
-const cancelPromptText = function (submitHandler) {
+const cancelPromptText = function(submitHandler) {
   PROMPT_INPUT.blur();
   PROMPT_INPUT.value = '';
   PROMPT.style.visibility = 'hidden'
@@ -400,12 +449,60 @@ const doClick = function({x, y}) {
     return;
   }
 
-  promptText(node.name, 'Enter name', function(name) {
+  drawClipboard(cbCtx);
+
+  const takeClipboard = function(e) {
+    CANCEL_PROMPT();
+    cbCnv.removeEventListener('click', takeClipboard);
+
+    const newTree = copyTree(CLIPBOARD);
+
+    const p = findParent(node, TREE);
+    if (!p) {
+      TREE = newTree;
+    } else {
+      replaceChild(p, node, newTree);
+    }
+
+    measureTree(ctx, TREE);
+
+    requestDraw();
+  };
+
+  cbCnv.addEventListener('click', takeClipboard);
+
+  // display prompt
+  promptText(node.name, 'Enter text', function(name) {
     node.name = name;
     node.textWidth = null;
     measureTree(ctx, TREE);
+    cbCnv.removeEventListener('click', takeClipboard);
     requestDraw();
   }, null);
+};
+
+const longPress = function() {
+  const node = TOUCH_NODE;
+
+  if (!node || node.handle) {
+    return;
+  }
+
+  // long press: delete/cut
+  const p = findParent(node, TREE);
+
+  if (!p) {
+    // don't cut root
+    return;
+  }
+
+  removeChild(p, node);
+  CLIPBOARD = node;
+
+  TOUCH_NODE = null;
+  TOUCH_BEGAN = null;
+
+  requestDraw();
 };
 
 //// zooming
@@ -425,7 +522,7 @@ const changeZoom = function({ox1, oy1, ox2, oy2, nx1, ny1, nx2, ny2}) {
   const ndy = ny1 - ny2;
   const nd2 = ndx * ndx + ndy * ndy;
   // desired new zoom
-  const z = Math.sqrt(nd2 / rd2);
+  const z = Math.min(1, Math.sqrt(nd2 / rd2));
   ZOOM.tz = z / ZOOM.z;
 
   // "real" location of original center
@@ -513,6 +610,7 @@ const defunFib =
 };
 */
 
+let CLIPBOARD = null;
 let TREE = {name: '', children: []};
 let SCROLL = {x: 100.5, y: 100.5, tx: 0, ty: 0};
 let ZOOM = {z: 1, tz: 1};
@@ -571,8 +669,7 @@ const widenTree = function(tree) {
   }
 };
 
-const drawTree = function(
-    tree, x, y, idx, depth, layers, layerSolid, layerLines) {
+const drawTree = function(tree, x, y, idx, depth, layers, layerSolid, layerLines) {
   if (tree == TOUCH_NODE) {
     if (tree.slideUnder) {
       layerSolid = layers.bgSolid;
@@ -669,11 +766,7 @@ const drawTree = function(
   }
 };
 
-const renderLayer = function(ctx, layer) {
-  const sx = SCROLL.x + SCROLL.tx;
-  const sy = SCROLL.y + SCROLL.ty;
-  const z = ZOOM.z * ZOOM.tz;
-
+const renderLayer = function(ctx, layer, sx, sy, z) {
   layer.forEach(function(cmd) {
     switch (cmd.op) {
       case 'fillText':
@@ -728,12 +821,35 @@ const drawObjects = function(ctx) {
 
   drawTree(TREE, 0, 0, 0, 0, layers, layers.midSolid, layers.midLines);
 
-  renderLayer(ctx, layers.bgSolid);
-  renderLayer(ctx, layers.bgLines);
-  renderLayer(ctx, layers.midSolid);
-  renderLayer(ctx, layers.midLines);
-  renderLayer(ctx, layers.fgSolid);
-  renderLayer(ctx, layers.fgLines);
+  const sx = SCROLL.x + SCROLL.tx;
+  const sy = SCROLL.y + SCROLL.ty;
+  const z = ZOOM.z * ZOOM.tz;
+
+  renderLayer(ctx, layers.bgSolid,  sx, sy, z);
+  renderLayer(ctx, layers.bgLines,  sx, sy, z);
+  renderLayer(ctx, layers.midSolid, sx, sy, z);
+  renderLayer(ctx, layers.midLines, sx, sy, z);
+  renderLayer(ctx, layers.fgSolid,  sx, sy, z);
+  renderLayer(ctx, layers.fgLines,  sx, sy, z);
+};
+
+const drawClipboardObjects = function (ctx) {
+  if (!CLIPBOARD) {
+    return;
+  }
+
+  measureTree(cbCtx, CLIPBOARD);
+
+  const layers = { midSolid: [], midLines: [] };
+
+  drawTree(CLIPBOARD, 0, 0, 0, 0, layers, layers.midSolid, layers.midLines);
+
+  const sx = 0;
+  const sy = CB_HIGH;
+  const z = 0.5;
+
+  renderLayer(ctx, layers.midSolid, sx, sy, z);
+  renderLayer(ctx, layers.midLines, sx, sy, z);
 };
 
 const nodeAt = function(treeX, treeY, {x, y}, tree) {
@@ -839,6 +955,21 @@ const addSiblingAfter = function(parentNode, node, newNode) {
   }
 };
 
+const copyTree = function(tree) {
+  const newTree = {name: tree.name};
+
+  if (tree.children) {
+    newTree.children = [];
+    tree.children.forEach(function(child) {
+      newTree.children.push(copyTree(child));
+    });
+  }
+
+  // all metrics get computed elsewhere
+  return newTree;
+};
+
 //// kick off first draw
 resize();
+resizeClipboard(CB_WIDE, CB_HIGH);
 })();
