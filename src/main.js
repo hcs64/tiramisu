@@ -346,6 +346,8 @@ const dragDrop = function() {
       removeChild(p, NEW_NODE);
     } else {
       SCROLL.x += SCROLL.tx;
+
+      showEditScreen(NEW_NODE);
     }
     SCROLL.tx = 0;
 
@@ -379,7 +381,10 @@ const dragDrop = function() {
         const p = findParent(NEW_NODE, TREE);
         replaceChild(p, NEW_NODE, TOUCH_NODE);
       }
+    } else {
+      showEditScreen(NEW_NODE);
     }
+
     NEW_NODE.slidOut = null;
     NEW_NODE = null;
   } else if (DRAG_MODE == 'pan') {
@@ -449,6 +454,10 @@ const doClick = function({x, y}) {
     return;
   }
 
+  showEditScreen(node);
+};
+
+const showEditScreen = function(node) {
   drawClipboard(cbCtx);
 
   const takeClipboard = function(e) {
