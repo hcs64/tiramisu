@@ -56,10 +56,14 @@ let DRAG_MODE = null;
 let DRAG_FEEL_X = 0;
 let DRAG_FEEL_Y = 0;
 let DRAG_LEFT_START_WIDTH = 0;
+let PINCH_BEGAN = null;
 
 const touchStart = function({x, y}){
+  x = (x - SCROLL.x) / ZOOM.z;
+  y = (y - SCROLL.y) / ZOOM.z;
+
   TOUCH_BEGAN = {x, y};
-  TOUCH_NODE = nodeAt(TREE_POS.x, TREE_POS.y, {x, y}, TREE);
+  TOUCH_NODE = nodeAt(0, 0, {x, y}, TREE);
 
   initDrag();
 
@@ -70,6 +74,8 @@ const touchMove = function({x, y}){
   if (!TOUCH_BEGAN) {
     return;
   }
+  x = (x - SCROLL.x) / ZOOM.z;
+  y = (y - SCROLL.y) / ZOOM.z;
 
   doDrag({x, y});
 
@@ -80,6 +86,8 @@ const touchEnd = function({x, y}){
   if (!TOUCH_BEGAN) {
     return;
   }
+  x = (x - SCROLL.x) / ZOOM.z;
+  y = (y - SCROLL.y) / ZOOM.z;
 
   if (DRAG_MODE) {
     doDrag({x, y});
@@ -111,12 +119,36 @@ const touchCancel = function() {
 };
 
 const pinchStart = function({x: x1, y: y1}, {x: x2, y: y2}) {
+  PINCH_BEGAN = { p1: {x: x1, y: y1}, p2: {x: x2, y: y2} };
+
+  requestDraw();
 };
 
 const pinchMove = function({x: x1, y: y1}, {x: x2, y: y2}) {
+  if (!PINCH_BEGAN) {
+    return;
+  }
+
+  changeZoom({
+    ox1: PINCH_BEGAN.p1.x, oy1: PINCH_BEGAN.p1.y,
+    ox2: PINCH_BEGAN.p2.x, oy2: PINCH_BEGAN.p2.y,
+    nx1: x1, ny1: y1,
+    nx2: x2, ny2: y2});
+
+  requestDraw();
 };
 
 const pinchEnd = function({x: x1, y: y1}, {x: x2, y: y2}) {
+  if (!PINCH_BEGAN) {
+    return;
+  }
+
+  pinchMove({x: x1, y: y1}, {x: x2, y: y2});
+  finishZoom();
+
+  PINCH_BEGAN = null;
+
+  requestDraw();
 };
 
 //// register touch handlers
@@ -131,6 +163,20 @@ GET_TOUCHY(cnv, {
 });
 
 window.addEventListener('wheel', function (e) {
+  e.preventDefault();
+
+  const cx = e.pageX;
+  const cy = e.pageY;
+  let delta = -e.deltaY;
+
+  if (e.deltaMode === 0x01) {
+    delta *= 20;
+  }
+  if (e.deltaMode === 0x02) {
+    delta *= 20 * 10;
+  }
+
+  changeZoomMouse({delta, cx, cy});
 }, {passive: false});
 
 ////
@@ -222,7 +268,7 @@ const doDrag = function({x, y}) {
     measureTree(ctx, TREE);
 
     if (DRAG_MODE == 'left') {
-      TREE_POS.xOff = DRAG_LEFT_START_WIDTH - TREE.width;
+      SCROLL.tx = DRAG_LEFT_START_WIDTH - TREE.width;
     }
   } else if (DRAG_MODE == 'down') {
     const slidOut = Math.max(0, Math.min(lineHeight, lineHeight - dy));
@@ -233,8 +279,8 @@ const doDrag = function({x, y}) {
     NEW_NODE.slidOut = slidOut;
     measureTree(ctx, TREE);
   } else if (DRAG_MODE == 'pan') {
-    TREE_POS.xOff = dx;
-    TREE_POS.yOff = dy;
+    SCROLL.tx = dx * ZOOM.z;
+    SCROLL.ty = dy * ZOOM.z;
   }
 };
 
@@ -248,9 +294,9 @@ const dragDrop = function() {
       const p = findParent(NEW_NODE, TREE);
       removeChild(p, NEW_NODE);
     } else {
-      TREE_POS.x += TREE_POS.xOff;
+      SCROLL.x += SCROLL.tx;
     }
-    TREE_POS.xOff = 0;
+    SCROLL.tx = 0;
 
     NEW_NODE.slidOver = null;
     NEW_NODE = null;
@@ -286,10 +332,10 @@ const dragDrop = function() {
     NEW_NODE.slidOut = null;
     NEW_NODE = null;
   } else if (DRAG_MODE == 'pan') {
-    TREE_POS.x += TREE_POS.xOff;
-    TREE_POS.y += TREE_POS.yOff;
-    TREE_POS.xOff = 0;
-    TREE_POS.yOff = 0;
+    SCROLL.x += SCROLL.tx;
+    SCROLL.y += SCROLL.ty;
+    SCROLL.tx = 0;
+    SCROLL.ty = 0;
   }
 
   DRAG_MODE = null;
@@ -346,7 +392,7 @@ const cancelPromptText = function (submitHandler) {
 };
 
 const doClick = function({x, y}) {
-  const node = nodeAt(TREE_POS.x, TREE_POS.y, {x, y}, TREE);
+  const node = nodeAt(0, 0, {x, y}, TREE);
 
   if (!node || node.handle) {
     return;
@@ -358,6 +404,65 @@ const doClick = function({x, y}) {
     measureTree(ctx, TREE);
     requestDraw();
   }, null);
+};
+
+//// zooming
+const changeZoom = function({ox1, oy1, ox2, oy2, nx1, ny1, nx2, ny2}) {
+  // "real" locations of the original zooming points
+  const x1r = (ox1 - SCROLL.x) / ZOOM.z;
+  const y1r = (oy1 - SCROLL.y) / ZOOM.z;
+  const x2r = (ox2 - SCROLL.x) / ZOOM.z;
+  const y2r = (oy2 - SCROLL.y) / ZOOM.z;
+  const dxr = x1r - x2r;
+  const dyr = y1r - y2r;
+
+  // old distance
+  const rd2 = dxr * dxr + dyr * dyr;
+  // new distance
+  const ndx = nx1 - nx2;
+  const ndy = ny1 - ny2;
+  const nd2 = ndx * ndx + ndy * ndy;
+  // desired new zoom
+  const z = Math.sqrt(nd2 / rd2);
+  ZOOM.tz = z / ZOOM.z;
+
+  // "real" location of original center
+  const cxr = (x1r + x2r) / 2;
+  const cyr = (y1r + y2r) / 2;
+  // new center
+  const ncx = (nx1 + nx2) / 2;
+  const ncy = (ny1 + ny2) / 2;
+
+  // desired new scroll
+  const sx = ncx - cxr * z;
+  const sy = ncy - cyr * z;
+  SCROLL.tx = sx - SCROLL.x;
+  SCROLL.ty = sy - SCROLL.y;
+};
+
+const changeZoomMouse = function({delta, cx, cy}) {
+  // desired new zoom
+  const z = ZOOM.z * Math.pow(2, delta / 100);
+
+  // "real" location of original center
+  const cxr = (cx - SCROLL.x) / ZOOM.z;
+  const cyr = (cy - SCROLL.y) / ZOOM.z;
+
+  // desired new scroll
+  const sx = cx - cxr * z;
+  const sy = cy - cyr * z;
+  SCROLL.x = sx;
+  SCROLL.y = sy;
+  ZOOM.z = z;
+};
+
+const finishZoom = function() {
+  SCROLL.x += SCROLL.tx;
+  SCROLL.y += SCROLL.ty;
+  SCROLL.tx = 0;
+  SCROLL.ty = 0;
+  ZOOM.z *= ZOOM.tz;
+  ZOOM.tz = 1;
 };
 
 //// tree manipulation
@@ -407,7 +512,8 @@ const defunFib =
 */
 
 let TREE = {name: '', children: []};
-let TREE_POS = {x: 100.5, y: 200.5, xOff: 0, yOff: 0};
+let SCROLL = {x: 100.5, y: 100.5, tx: 0, ty: 0};
+let ZOOM = {z: 1, tz: 1};
 
 const measureTree = function(ctx, tree) {
   const measureTextWidth = function(text) {
@@ -562,6 +668,10 @@ const drawTree = function(
 };
 
 const renderLayer = function(ctx, layer) {
+  const sx = SCROLL.x + SCROLL.tx;
+  const sy = SCROLL.y + SCROLL.ty;
+  const z = ZOOM.z * ZOOM.tz;
+
   layer.forEach(function(cmd) {
     switch (cmd.op) {
       case 'fillText':
@@ -569,27 +679,27 @@ const renderLayer = function(ctx, layer) {
         ctx.font = cmd.font;
         ctx.textAlign = cmd.textAlign;
         ctx.textBaseline = cmd.textBaseline;
-        ctx.fillText(cmd.msg, cmd.cx, cmd.cy);
+        ctx.fillText(cmd.msg, cmd.cx * z + sx, cmd.cy * z + sy);
         break;
       case 'fillRect':
         ctx.fillStyle = cmd.fillStyle;
-        ctx.fillRect(cmd.x, cmd.y, cmd.w, cmd.h);
+        ctx.fillRect(cmd.x * z + sx, cmd.y * z + sy, cmd.w * z, cmd.h * z);
         break;
       case 'strokeRect':
         ctx.strokeStyle = cmd.strokeStyle;
-        ctx.lineWidth = cmd.lineWidth;
-        ctx.strokeRect(cmd.x, cmd.y, cmd.w, cmd.h);
+        ctx.lineWidth = cmd.lineWidth * z;
+        ctx.strokeRect(cmd.x * z + sx, cmd.y * z + sy, cmd.w * z, cmd.h * z);
         break;
       case 'stroke':
         ctx.beginPath();
         cmd.path.forEach(function(segment) {
-          ctx.moveTo(segment[0].x, segment[0].y);
+          ctx.moveTo(segment[0].x * z + sx, segment[0].y * z + sy);
           for (let i = 1; i < segment.length; ++i) {
-            ctx.lineTo(segment[i].x, segment[i].y);
+            ctx.lineTo(segment[i].x * z + sx, segment[i].y * z + sy);
           }
         });
         ctx.strokeStyle = cmd.strokeStyle;
-        ctx.lineWidth = cmd.lineWidth;
+        ctx.lineWidth = cmd.lineWidth * z;
         ctx.stroke();
         break;
     }
@@ -609,8 +719,7 @@ const drawObjects = function(ctx) {
     fgLines: [],
   };
 
-  drawTree(TREE, TREE_POS.x + TREE_POS.xOff, TREE_POS.y + TREE_POS.yOff,
-      0, 0, layers, layers.midSolid, layers.midLines);
+  drawTree(TREE, 0, 0, 0, 0, layers, layers.midSolid, layers.midLines);
 
   renderLayer(ctx, layers.bgSolid);
   renderLayer(ctx, layers.bgLines);
