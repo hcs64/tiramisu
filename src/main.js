@@ -47,16 +47,13 @@ const resize = function() {
 window.addEventListener('resize', resize);
 window.addEventListener('focus',  requestDraw);
 
-let CB_WIDE = 100;
-let CB_HIGH = 200;
+let CB_WIDE = 0;
+let CB_HIGH = 0;
 
 const cbCnv = document.getElementById('clipboard');
 const cbCtx = cbCnv.getContext('2d');
 
 const drawClipboard = function() {
-  cbCtx.fillStyle = 'white';
-  cbCtx.fillRect(0, 0, CB_WIDE, CB_HIGH);
-
   drawClipboardObjects(cbCtx);
 
   cbCtx.strokeStyle = 'black';
@@ -858,14 +855,22 @@ const drawClipboardObjects = function (ctx) {
   }
 
   measureTree(cbCtx, CLIPBOARD);
+  const depth = treeMaxDepth(CLIPBOARD, 1);
+  const z = 0.5;
+
+  const cw = Math.max(lineHeight, CLIPBOARD.width * z);
+  const ch = Math.max(lineHeight, depth * lineHeight * z);
+  resizeClipboard(cw, ch);
+
+  cbCtx.fillStyle = 'white';
+  cbCtx.fillRect(0, 0, CB_WIDE, CB_HIGH);
+
+  const sx = 0;
+  const sy = CB_HIGH;
 
   const layers = { midSolid: [], midLines: [] };
 
   drawTree(CLIPBOARD, 0, 0, 0, 0, layers, layers.midSolid, layers.midLines);
-
-  const sx = 0;
-  const sy = CB_HIGH;
-  const z = 0.5;
 
   renderLayer(ctx, layers.midSolid, sx, sy, z);
   renderLayer(ctx, layers.midLines, sx, sy, z);
@@ -987,6 +992,19 @@ const copyTree = function(tree) {
   // all metrics get computed elsewhere
   return newTree;
 };
+
+const treeMaxDepth = function(tree, depth) {
+  let maxDepth = depth;
+
+  if (tree.children && tree.children.length > 0) {
+    tree.children.forEach(function(child) {
+      const childDepth = treeMaxDepth(child, depth + 1);
+      maxDepth = Math.max(childDepth, maxDepth);
+    });
+  }
+  return maxDepth
+};
+
 
 //// kick off first draw
 resize();
