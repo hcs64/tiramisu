@@ -541,7 +541,7 @@ const changeZoom = function({ox1, oy1, ox2, oy2, nx1, ny1, nx2, ny2}) {
 
 const changeZoomMouse = function({delta, cx, cy}) {
   // desired new zoom
-  const z = ZOOM.z * Math.pow(2, delta / 100);
+  const z = Math.min(1, ZOOM.z * Math.pow(2, delta / 100));
 
   // "real" location of original center
   const cxr = (cx - SCROLL.x) / ZOOM.z;
