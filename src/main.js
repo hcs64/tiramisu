@@ -177,6 +177,8 @@ window.addEventListener('wheel', function (e) {
   }
 
   changeZoomMouse({delta, cx, cy});
+
+  requestDraw();
 }, {passive: false});
 
 ////
@@ -675,11 +677,16 @@ const renderLayer = function(ctx, layer) {
   layer.forEach(function(cmd) {
     switch (cmd.op) {
       case 'fillText':
+        ctx.save();
         ctx.fillStyle = cmd.fillStyle;
         ctx.font = cmd.font;
         ctx.textAlign = cmd.textAlign;
         ctx.textBaseline = cmd.textBaseline;
-        ctx.fillText(cmd.msg, cmd.cx * z + sx, cmd.cy * z + sy);
+
+        ctx.scale(z, z);
+        ctx.translate(cmd.cx + sx / z, cmd.cy + sy / z);
+        ctx.fillText(cmd.msg, 0, 0);
+        ctx.restore();
         break;
       case 'fillRect':
         ctx.fillStyle = cmd.fillStyle;
