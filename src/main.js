@@ -665,7 +665,7 @@ const widenTree = function(tree) {
         widenTree(child);
       }
     });
-    tree.childrenWidth = adjust * nonSlidingChildren;
+    tree.childrenWidth += adjust * nonSlidingChildren;
   }
 };
 
