@@ -83,6 +83,7 @@ const dragDist = 10;
 let TOUCH_BEGAN = null;
 let TOUCH_NODE = null;
 let NEW_NODE = null;
+let EDITING_NODE = null;
 let DRAG_MODE = null;
 let DRAG_FEEL_X = 0;
 let DRAG_FEEL_Y = 0;
@@ -433,7 +434,7 @@ const promptText = function(init, msg, cb, cbc) {
 
   CANCEL_PROMPT = function () {
     cancelPromptText(submitHandler);
-    if (!!cbc) {
+    if (cbc) {
       cbc();
     }
   };
@@ -458,22 +459,27 @@ const doClick = function({x, y}) {
 };
 
 const showEditScreen = function(node) {
+  EDITING_NODE = node;
+
   drawClipboard(cbCtx);
 
   const takeClipboard = function(e) {
     CANCEL_PROMPT();
     cbCnv.removeEventListener('click', takeClipboard);
 
-    const newTree = copyTree(CLIPBOARD);
+    if (CLIPBOARD) {
 
-    const p = findParent(node, TREE);
-    if (!p) {
-      TREE = newTree;
-    } else {
-      replaceChild(p, node, newTree);
+      const newTree = copyTree(CLIPBOARD);
+
+      const p = findParent(node, TREE);
+      if (!p) {
+        TREE = newTree;
+      } else {
+        replaceChild(p, node, newTree);
+      }
+
+      measureTree(ctx, TREE);
     }
-
-    measureTree(ctx, TREE);
 
     requestDraw();
   };
@@ -486,8 +492,12 @@ const showEditScreen = function(node) {
     node.textWidth = null;
     measureTree(ctx, TREE);
     cbCnv.removeEventListener('click', takeClipboard);
+
+    EDITING_NODE = null;
     requestDraw();
-  }, null);
+  }, function() {
+    EDITING_NODE = null;
+  });
 };
 
 const longPress = function() {
@@ -761,7 +771,7 @@ const drawTree = function(tree, x, y, idx, depth, layers, layerSolid, layerLines
 
   // highlight node if it is being dragged
   // or if this is a new node and it is locked in (slid completely)
-  if (tree == TOUCH_NODE ||
+  if (tree == TOUCH_NODE || tree == EDITING_NODE ||
       (tree == NEW_NODE &&
        (tree.slidOver == lineHeight || tree.slidOut == lineHeight))) {
     layers.fgLines.push(
