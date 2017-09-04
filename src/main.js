@@ -403,6 +403,8 @@ const PROMPT_FORM = document.getElementById('prompt-form');
 const PROMPT_MSG = document.getElementById('prompt-msg');
 const PROMPT_INPUT = document.getElementById('prompt-input');
 
+const CLIPBOARD_MSG = document.getElementById('clipboard-msg');
+
 const promptText = function(init, msg, cb, cbc) {
   if (typeof init !== 'string') {
     init = '';
@@ -459,6 +461,11 @@ const showEditScreen = function(node) {
   EDITING_NODE = node;
 
   drawClipboard(cbCtx);
+  if (CLIPBOARD) {
+    CLIPBOARD_MSG.textContent = 'Clipboard';
+  } else {
+    CLIPBOARD_MSG.textContent = '';
+  }
 
   const takeClipboard = function(e) {
     CANCEL_PROMPT();
